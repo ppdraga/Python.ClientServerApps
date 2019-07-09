@@ -1,7 +1,7 @@
 import json
 from socket import socket
 from argparse import ArgumentParser
-
+from datetime import datetime
 
 parser = ArgumentParser()
 
@@ -33,9 +33,17 @@ sock.connect(
 
 print(f'Client is up and running')
 
+action = input('Enter action: ')
 data = input('Enter data: ')
+request = {
+    'action': action,
+    'time': datetime.now().timestamp(),
+    'data': data
+}
 
-sock.send(data.encode())
+s_request = json.dumps(request)
+
+sock.send(s_request.encode())
 print(f'Client sent data: {data}')
 b_response = sock.recv(default_config.get('buffersize'))
 print(b_response.decode())
