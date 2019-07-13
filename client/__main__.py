@@ -2,6 +2,7 @@ import json
 from socket import socket
 from argparse import ArgumentParser
 from datetime import datetime
+import logging
 
 parser = ArgumentParser()
 
@@ -18,6 +19,17 @@ default_config = {
     'buffersize': 1024
 }
 
+logger = logging.getLogger('main')
+logger.setLevel(logging.DEBUG)
+
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+handler = logging.FileHandler('client.log')
+handler.setFormatter(formatter)
+handler.setLevel(logging.DEBUG)
+
+logger.addHandler(handler)
+
 if args.config:
     with open(args.config) as file:
         file_config = json.load(file)
@@ -32,6 +44,7 @@ sock.connect(
 )
 
 print(f'Client is up and running')
+logger.info(f'Client is up and running')
 
 action = input('Enter action: ')
 data = input('Enter data: ')
@@ -44,6 +57,7 @@ request = {
 s_request = json.dumps(request)
 
 sock.send(s_request.encode())
-print(f'Client sent data: {data}')
+# print(f'Client sent data: {data}')
+logger.info(f'Client sent data: {data}')
 b_response = sock.recv(default_config.get('buffersize'))
 print(b_response.decode())
