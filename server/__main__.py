@@ -1,8 +1,10 @@
 import json
+import select
 from socket import socket
 from argparse import ArgumentParser
 from protocol import validate_request, make_response
 from resolvers import resolve
+from handlers import handle_default_request
 import logging
 
 parser = ArgumentParser()
@@ -45,50 +47,40 @@ logging.basicConfig(
     ]
 )
 
-try:
+requests = []
+connections = []
 
+try:
     sock = socket()
     sock.bind((default_config.get('host'), default_config.get('port'),))
+    sock.settimeout(0)
     sock.listen(5)
 
     # print(f"Server  is up and running on {default_config.get('host')}:{default_config.get('port')}")
     logging.info(f"Server  is up and running on {default_config.get('host')}:{default_config.get('port')}")
 
     while True:
-        client, address = sock.accept()
-        # print(f'Client is connected on {address[0]}:{address[1]}')
-        logging.info(f'Client is connected with {address[0]}:{address[1]}')
-        # b_request = client.recv(default_config.get('buffersize'))
-        # print(f'Client sent message: {b_request.decode()}')
-        # client.send(b_request)
-        b_request = client.recv(default_config.get('buffersize'))
-        request = json.loads(b_request.decode())
-        
-        if validate_request(request):
-            action_name = request.get('action')
-            controller = resolve(action_name)
-            if controller:
-                try:
-                    # print(f'Controller {action_name} resolved with request: {request}')
-                    logging.debug(f'Controller {action_name} resolved with request: {request}')
-                    response = controller(request)
-                except Exception as err:
-                    # print(f'Controller {action_name} error: {err}')
-                    logging.critical(f'Controller {action_name} error: {err}')
-                    response = make_response(request, 500, 'Internal server error')
-            else:
-                # print(f'Controller {action_name} not found')
-                logging.error(f'Controller {action_name} not found')
-                response = make_response(request, 404, f'Action with name {action_name} not supported')
-        else:
-            # print(f'Controller wrong request: {request}')
-            logging.error(f'Controller wrong request: {request}')
-            response = make_response(request, 400, 'wrong request format')
+        try:
+            client, address = sock.accept()
+            connections.append(client)
+            # print(f'Client is connected on {address[0]}:{address[1]}')
+            logging.info(f'Client is connected with {address[0]}:{address[1]}')
+        except:
+            pass
+        if len(connections) > 0:    
+            rlist, wlist, xlist = select.select(
+                connections, connections, connections, 0
+            )
+            for r_client in rlist:
+                b_request = r_client.recv(default_config.get('buffersize'))
+                requests.append(b_request)
 
-        client.send(
-            json.dumps(response).encode()
-        )
-        client.close()
+            if requests:
+                b_request = requests.pop()
+                b_response = handle_default_request(b_request)
+
+                for w_client in wlist:
+                    w_client.send(b_response)
 
 except KeyboardInterrupt:
     # print('Server terminated')

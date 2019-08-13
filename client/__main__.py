@@ -1,4 +1,5 @@
 import json
+import zlib
 from socket import socket
 from argparse import ArgumentParser
 from datetime import datetime
@@ -9,6 +10,10 @@ parser = ArgumentParser()
 
 parser.add_argument(
     '-c', '--config', type=str,
+    required=False, help='Sets config file path'
+)
+parser.add_argument(
+    '-m', '--mode', type=str, default='r',
     required=False, help='Sets config file path'
 )
 
@@ -45,6 +50,32 @@ if args.config:
         file_config = json.load(file)
         default_config.update(file_config)
 
+def write(sock):
+    hash_obj = hashlib.sha256()
+    hash_obj.update(
+        str(datetime.now().timestamp()).encode()
+    )
+
+    action = input('Enter action: ')
+    data = input('Enter data: ')
+
+    request = {
+        'action': action,
+        'time': datetime.now().timestamp(),
+        'data': data,
+        'token': hash_obj.hexdigest()
+    }
+
+    s_request = json.dumps(request)
+    b_request = zlib.compress(s_request.encode())
+    sock.send(b_request)
+    print(f'Client send data: {data}')
+
+def read(sock):
+    comporessed_response = sock.recv(default_config.get('buffersize'))
+    b_response = zlib.decompress(comporessed_response)
+    print(b_response.decode())
+
 sock = socket()
 sock.connect(
     (
@@ -56,24 +87,12 @@ sock.connect(
 print(f'Client is up and running')
 logging.info(f'Client is up and running')
 
-hash_obj = hashlib.sha256()
-hash_obj.update(
-    str(datetime.now().timestamp()).encode()
-)
-
-action = input('Enter action: ')
-data = input('Enter data: ')
-request = {
-    'action': action,
-    'time': datetime.now().timestamp(),
-    'data': data,
-    'token': hash_obj.hexdigest()
-}
-
-s_request = json.dumps(request)
-
-sock.send(s_request.encode())
-# print(f'Client sent data: {data}')
-logging.info(f'Client sent data: {data}')
-b_response = sock.recv(default_config.get('buffersize'))
-print(b_response.decode())
+try:
+    while True:
+        if args.mode == 'w':
+            write(sock)
+        elif args.mode == 'r':
+            read(sock)
+except KeyboardInterrupt:
+    sock.close()
+    print('Client shutdown')
